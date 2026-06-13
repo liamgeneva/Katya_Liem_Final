@@ -3,115 +3,121 @@ using System.Collections.Generic;
 
 public class MonsterMovement : MonoBehaviour
 {
-    [Header("Ссылки")]
-    [Tooltip("Перетащи сюда объект Player")]
+    [Header("References")]
     public Transform player;
 
-    [Header("Настройки")]
-    [Tooltip("Скорость монстра")]
+    [Header("Settings")]
     public float speed = 6f;
 
-    [Tooltip("На сколько единиц сзади по пути держится монстр")]
+    [Tooltip("How many units behind the player the monster stays on the trail")]
     public float trailDistance = 6f;
 
-    [Tooltip("Записывать новую точку пути каждые N единиц расстояния")]
+    [Tooltip("Record a new trail point every N units")]
     public float recordStep = 0.3f;
 
-    // ── Приватные переменные ──────────────────────────────────────────────
-    private List<Vector3> trail = new List<Vector3>(); // записанный путь игрока
+    // ── Private ───────────────────────────────────────────────────────────
+    private List<Vector3> trail = new List<Vector3>();
     private Vector3 lastRecordedPos;
 
-    private SimpleSphereMove playerController;
+    private Vector3 startPosition;
+    private Quaternion startRotation;
 
-    // ── Инициализация ─────────────────────────────────────────────────────
+    // ── Init ──────────────────────────────────────────────────────────────
     void Start()
     {
+        startPosition = transform.position;
+        startRotation = transform.rotation;
+        InitTrail();
+    }
+
+    void InitTrail()
+    {
+        trail.Clear();
         if (player != null)
         {
-            playerController = player.GetComponent<SimpleSphereMove>();
             lastRecordedPos = player.position;
             trail.Add(player.position);
         }
     }
 
-    // ── Главный цикл ──────────────────────────────────────────────────────
+    public void Respawn()
+    {
+        transform.position = startPosition;
+        transform.rotation = startRotation;
+        InitTrail();
+    }
+
+    // ── Main loop ─────────────────────────────────────────────────────────
     void Update()
     {
-        if (player == null || trail.Count == 0) return;
+        if (player == null) return;
 
-        RecordPlayerTrail();
+        RecordTrail();
         FollowTrail();
     }
 
-    // ── Запись пути игрока ────────────────────────────────────────────────
-    void RecordPlayerTrail()
+    // ── Record player path ────────────────────────────────────────────────
+    void RecordTrail()
     {
-        // Добавляем точку только если игрок прошёл достаточно далеко
-        if (Vector3.Distance(player.position, lastRecordedPos) >= recordStep)
-        {
-            trail.Add(player.position);
-            lastRecordedPos = player.position;
+        if (Vector3.Distance(player.position, lastRecordedPos) < recordStep) return;
 
-            // Убираем старые точки, которые монстр уже давно прошёл
-            TrimOldPoints();
-        }
+        trail.Add(player.position);
+        lastRecordedPos = player.position;
+        TrimOldPoints();
     }
 
-    // ── Движение по записанному пути ──────────────────────────────────────
+    // ── Follow the recorded path ──────────────────────────────────────────
     void FollowTrail()
     {
-        // Ищем точку на пути, которая находится на trailDistance позади игрока
+        // Measure total trail length
+        float totalLength = 0f;
+        for (int i = trail.Count - 1; i > 0; i--)
+            totalLength += Vector3.Distance(trail[i], trail[i - 1]);
+
+        // Stay still until the player is far enough ahead on the trail.
+        // This prevents the monster from oscillating at the start or after respawn.
+        if (totalLength < trailDistance) return;
+
+        // Walk backwards along the trail to find the point at trailDistance
         float remaining = trailDistance;
         Vector3 targetPos = trail[0];
 
         for (int i = trail.Count - 1; i > 0; i--)
         {
-            float segmentLength = Vector3.Distance(trail[i], trail[i - 1]);
-
-            if (remaining <= segmentLength)
+            float seg = Vector3.Distance(trail[i], trail[i - 1]);
+            if (remaining <= seg)
             {
-                // Точка внутри этого отрезка пути
-                float t = remaining / segmentLength;
-                targetPos = Vector3.Lerp(trail[i], trail[i - 1], t);
+                targetPos = Vector3.Lerp(trail[i], trail[i - 1], remaining / seg);
                 break;
             }
-
-            remaining -= segmentLength;
+            remaining -= seg;
         }
 
-        // Двигаемся к целевой точке
-        transform.position = Vector3.MoveTowards(
-            transform.position,
-            targetPos,
-            speed * Time.deltaTime
-        );
+        // Move toward target
+        Vector3 prevPos = transform.position;
+        transform.position = Vector3.MoveTowards(transform.position, targetPos, speed * Time.deltaTime);
 
-        // Поворачиваемся в сторону движения
-        Vector3 dir = (targetPos - transform.position).normalized;
-        if (dir.sqrMagnitude > 0.01f)
+        // Rotate based on actual movement direction, not the target vector
+        // (prevents spinning when already at the target point)
+        Vector3 moved = transform.position - prevPos;
+        if (moved.sqrMagnitude > 0.0001f)
         {
-            Quaternion targetRot = Quaternion.LookRotation(dir);
-            transform.rotation = Quaternion.RotateTowards(
-                transform.rotation,
-                targetRot,
-                360f * Time.deltaTime
-            );
+            Quaternion targetRot = Quaternion.LookRotation(moved.normalized);
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, targetRot, 480f * Time.deltaTime);
         }
     }
 
-    // ── Удаление лишних старых точек ──────────────────────────────────────
+    // ── Trim points the monster has already passed ────────────────────────
     void TrimOldPoints()
     {
-        // Оставляем только столько точек, сколько нужно для trailDistance + небольшой запас
         float totalLength = 0f;
-        float keepLength = trailDistance + 5f;
+        float keepLength = trailDistance + 4f;
 
         for (int i = trail.Count - 1; i > 0; i--)
         {
             totalLength += Vector3.Distance(trail[i], trail[i - 1]);
             if (totalLength > keepLength)
             {
-                // Всё до этого индекса можно удалить
                 trail.RemoveRange(0, i);
                 break;
             }
