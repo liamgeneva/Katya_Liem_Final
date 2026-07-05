@@ -6,7 +6,9 @@ public class DeathZone : MonoBehaviour
     {
         if (!other.CompareTag("Player")) return;
 
-        Debug.Log("Game Over! The player fell into the death zone.");
-        other.gameObject.SetActive(false);
+        LifeSystem lifeSystem = other.GetComponent<LifeSystem>();
+        if (lifeSystem != null)
+            lifeSystem.TakeDamage();
     }
 }
+
