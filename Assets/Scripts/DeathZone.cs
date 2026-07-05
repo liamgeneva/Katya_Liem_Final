@@ -2,15 +2,11 @@ using UnityEngine;
 
 public class DeathZone : MonoBehaviour
 {
-    void OnTriggerEnter(Collider other) => Kill(other);
-    void OnTriggerStay(Collider other)  => Kill(other);
-
-    void Kill(Collider other)
+    void OnTriggerEnter(Collider other)
     {
         if (!other.CompareTag("Player")) return;
 
-        Debug.Log("You died!");
+        Debug.Log("Game Over! The player fell into the death zone.");
         other.gameObject.SetActive(false);
-        Destroy(other.gameObject);
     }
 }

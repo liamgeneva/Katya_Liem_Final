@@ -26,10 +26,9 @@ public class SimpleSphereMove : MonoBehaviour
     private Vector3 moveDirection = Vector3.forward;
     private Quaternion targetRotation;
     private float verticalVelocity = 0f;
-    private float currentSpeed = 0f;   // текущая скорость плавно нарастает до runSpeed
+    private float currentSpeed = 0f;
     private bool isDead = false;
 
-    // Текущая точка поворота (null = игрок не в углу лабиринта)
     private TurnPoint currentTurnPoint = null;
 
     public bool IsDead => isDead;
@@ -55,10 +54,7 @@ public class SimpleSphereMove : MonoBehaviour
     // ── Обработка ввода ───────────────────────────────────────────────────
     void HandleInput()
     {
-        // Повернуть можно только стоя в точке поворота
         if (currentTurnPoint == null) return;
-
-        // Не принимать новый поворот, пока предыдущий не завершён
         if (Quaternion.Angle(transform.rotation, targetRotation) > 5f) return;
 
         var kb = Keyboard.current;
@@ -76,10 +72,8 @@ public class SimpleSphereMove : MonoBehaviour
         }
     }
 
-    // Поворот + прижатие к центру коридора (чтобы не съехать в стену)
     void ExecuteTurn(float degrees)
     {
-        // Снапаем позицию к центру точки поворота (по X и Z)
         Vector3 snap = currentTurnPoint.transform.position;
         transform.position = new Vector3(snap.x, transform.position.y, snap.z);
 
@@ -106,7 +100,6 @@ public class SimpleSphereMove : MonoBehaviour
         else
             verticalVelocity -= 9.81f * Time.deltaTime;
 
-        // Плавный разгон до runSpeed
         currentSpeed = Mathf.Lerp(currentSpeed, runSpeed, acceleration * Time.deltaTime);
 
         Vector3 velocity = moveDirection * currentSpeed;
@@ -117,10 +110,7 @@ public class SimpleSphereMove : MonoBehaviour
     // ── Центрирование в коридоре ──────────────────────────────────────────
     void CenterInCorridor()
     {
-        // Перпендикуляр к направлению движения — это и есть "боковая" ось коридора
         Vector3 right = Vector3.Cross(Vector3.up, moveDirection).normalized;
-
-        // Лучи пускаем с высоты пояса, чтобы не цеплять пол/потолок
         Vector3 origin = transform.position + Vector3.up * 0.5f;
 
         RaycastHit leftHit, rightHit;
@@ -129,15 +119,12 @@ public class SimpleSphereMove : MonoBehaviour
 
         if (!hasLeft || !hasRight) return;
 
-        // Середина между двумя стенами
         Vector3 midPoint = (leftHit.point + rightHit.point) * 0.5f;
-
-        // Смещение только по боковой оси (не трогаем направление движения и высоту)
         float lateralOffset = Vector3.Dot(midPoint - transform.position, right);
         transform.position += right * lateralOffset * centeringSpeed * Time.deltaTime;
     }
 
-    // ── Вход в точку поворота ─────────────────────────────────────────────
+    // ── Вход / выход из точки поворота ───────────────────────────────────
     void OnTriggerEnter(Collider other)
     {
         TurnPoint tp = other.GetComponent<TurnPoint>();
@@ -145,7 +132,6 @@ public class SimpleSphereMove : MonoBehaviour
             currentTurnPoint = tp;
     }
 
-    // ── Выход из точки поворота ───────────────────────────────────────────
     void OnTriggerExit(Collider other)
     {
         TurnPoint tp = other.GetComponent<TurnPoint>();
@@ -153,7 +139,7 @@ public class SimpleSphereMove : MonoBehaviour
             currentTurnPoint = null;
     }
 
-    // ── Столкновение со стеной/препятствием ──────────────────────────────
+    // ── Столкновение с препятствием ───────────────────────────────────────
     void OnControllerColliderHit(ControllerColliderHit hit)
     {
         if (hit.gameObject.CompareTag("Obstacle"))
@@ -165,8 +151,26 @@ public class SimpleSphereMove : MonoBehaviour
     {
         if (isDead) return;
         isDead = true;
-        Debug.Log("You died!");
-        gameObject.SetActive(false);
-        Destroy(gameObject);
+        GetComponent<LifeSystem>()?.TakeDamage();
+    }
+
+    // ── Сброс после respawn ───────────────────────────────────────────────
+    public void ResetPlayer()
+    {
+        isDead = true;
+        currentSpeed = 0f;
+        verticalVelocity = 0f;
+        moveDirection = transform.forward;
+        targetRotation = transform.rotation;
+        currentTurnPoint = null;
+
+        CancelInvoke(nameof(StartMoving));
+        Invoke(nameof(StartMoving), 2f);
+    }
+
+    void StartMoving()
+    {
+        isDead = false;
+        currentSpeed = runSpeed;
     }
 }
