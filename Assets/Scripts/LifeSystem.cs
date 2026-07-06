@@ -34,7 +34,7 @@ public class LifeSystem : MonoBehaviour
         if (cc != null) cc.enabled = false;
 
         // Freeze the enemy immediately so it stops moving
-        if (enemy != null) enemy.enabled = false;
+        if (enemy != null) enemy.Freeze();
 
         playerLives.LoseLife();
 
