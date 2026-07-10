@@ -1,66 +1,55 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
+using System.Collections;
 
 public class LifeSystem : MonoBehaviour
 {
-    [Tooltip("Number of lives at the start")]
-    public int maxLives = 3;
+    [Tooltip("Drag your lives ScriptableObject asset here")]
+    public lives playerLives;
 
     [Tooltip("Drag the Enemy object here")]
     public MonsterMovement enemy;
 
-    private int currentLives;
-    private Vector3 startPosition;
-    private Quaternion startRotation;
-    private SimpleSphereMove playerMove;
-    private CharacterController cc;
-
-    // Cooldown flag — prevents double-triggering right after respawn
+    // Cooldown flag — prevents double-triggering on the same death
     private bool isRespawning = false;
 
     void Start()
     {
-        currentLives = maxLives;
-        startPosition = transform.position;
-        startRotation = transform.rotation;
-        playerMove = GetComponent<SimpleSphereMove>();
-        cc = GetComponent<CharacterController>();
+        if (playerLives == null)
+            Debug.LogWarning("LifeSystem: Assign the lives ScriptableObject in the Inspector!", this);
     }
 
     public void TakeDamage()
     {
         if (isRespawning) return;
+        if (playerLives == null) return;
 
-        currentLives--;
-
-        if (currentLives <= 0)
-        {
-            Debug.Log("Game Over");
-            gameObject.SetActive(false);
-            return;
-        }
-
-        Debug.Log(currentLives == 1 ? "1 life left" : currentLives + " lives left");
-        Respawn();
-    }
-
-    void Respawn()
-    {
         isRespawning = true;
 
-        // Teleport player — CharacterController must be disabled to change position
-        cc.enabled = false;
-        transform.position = startPosition;
-        transform.rotation = startRotation;
-        cc.enabled = true;
+        // Freeze the player immediately so it stops moving
+        SimpleSphereMove playerMove = GetComponent<SimpleSphereMove>();
+        if (playerMove != null) playerMove.enabled = false;
 
-        playerMove.ResetPlayer();
+        CharacterController cc = GetComponent<CharacterController>();
+        if (cc != null) cc.enabled = false;
 
-        if (enemy != null)
-            enemy.Respawn();
+        // Freeze the enemy immediately so it stops moving
+        if (enemy != null) enemy.Freeze();
 
-        // Allow damage again after a short delay so the player can move away from the zone
-        Invoke(nameof(ClearRespawn), 0.5f);
+        playerLives.LoseLife();
+
+        if (playerLives.IsGameOver)
+            playerLives.ResetLives();
+
+        // Short delay so the freeze is visible, then reload
+        StartCoroutine(ReloadAfterDelay(0.5f));
     }
 
-    void ClearRespawn() => isRespawning = false;
+    IEnumerator ReloadAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    }
 }
+
+
