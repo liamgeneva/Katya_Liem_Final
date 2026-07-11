@@ -26,6 +26,21 @@ public class WinningZone : MonoBehaviour
             nextIndex = 0; // main menu
         }
 
+        // Find the LevelCompleteUI automatically if not set in the Inspector
+        if (levelCompleteUI == null)
+        {
+            // Try modern Unity API first
+            levelCompleteUI = FindFirstObjectByType<LevelCompleteUI>();
+            
+            // Fall back to older Unity API if modern isn't available/found
+            if (levelCompleteUI == null)
+            {
+#pragma warning disable CS0618
+                levelCompleteUI = FindObjectOfType<LevelCompleteUI>();
+#pragma warning restore CS0618
+            }
+        }
+
         // Show the Level Complete panel if it exists, otherwise load directly
         if (levelCompleteUI != null)
         {

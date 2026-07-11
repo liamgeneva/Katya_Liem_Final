@@ -9,6 +9,9 @@ public class lives : ScriptableObject
     // static = survives scene reloads. -1 means "not started yet".
     private static int _currentLives = -1;
 
+    // Any script can read the current lives without needing an Inspector reference
+    public static int Current => _currentLives < 0 ? 3 : _currentLives;
+
     public int currentLives => _currentLives;
 
     // Called by Unity each time the scene loads.
